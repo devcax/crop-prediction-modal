@@ -1,0 +1,24 @@
+{
+  "items": {
+    "beans": 1,
+    "carrot": 2,
+    "cabbage": 3,
+    "tomato": 4,
+    "brinjal": 5,
+    "pumpkin": 6,
+    "snake_gourd": 7,
+    "green_chilli": 8,
+    "lime": 9,
+    "red_onion_local": 10,
+    "big_onion_local": 11,
+    "potato_local": 12,
+    "red_dhal": 13,
+    "banana_sour": 14,
+    "papaw": 15,
+    "pineapple": 16
+  },
+  "markets": {
+    "pettah": 0,
+    "dambulla": 1
+  }
+}
