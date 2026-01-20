@@ -61,3 +61,7 @@ def predict_price(request: PredictionRequest):
 
 # To run the app:
 # uvicorn app:app --reload
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app:app", host="0.0.0.0", port=8050, reload=True)
