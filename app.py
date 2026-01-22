@@ -1,67 +1,64 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from predict import recommend_best_market
-from typing import Optional, List, Dict, Any
+from typing import List, Dict, Any, Optional
+
+from predict import recommend_best_market  # <-- your function that takes payload dict
+
 
 app = FastAPI(title="Market Price Prediction API")
 
-class PredictionRequest(BaseModel):
-    user_lat: float = Field(..., description="User's latitude")
-    user_lon: float = Field(..., description="User's longitude")
-    item_id: int = Field(..., description="Item ID to predict price for")
-    start_date: str = Field(..., description="Start date in YYYY-MM-DD format")
-    horizon_days: int = Field(..., description="Prediction horizon in days (1-30)")
-    is_holiday: int = Field(..., description="1 if holiday, 0 otherwise")
-    fuel_price: float = Field(..., description="Current fuel price")
-    transport_cost_per_km: float = Field(default=0.0, description="Transport cost per km")
 
-class MarketPrediction(BaseModel):
+class PredictRequest(BaseModel):
+    crop: str = Field(..., description="Crop name (e.g., tomato)")
+    quantity_kg: float = Field(..., gt=0, description="Quantity in KG")
+    horizon_days: int = Field(..., ge=1, le=30, description="Forecast horizon (1-30)")
+    latitude: float = Field(..., description="User latitude")
+    longitude: float = Field(..., description="User longitude")
+
+
+class MarketResult(BaseModel):
     market_id: int
     market_name: str
     distance_km: float
-    predicted_price: float
-    transport_cost_est: float
-    net_est_price: float
+    predicted_price_per_kg: str
+    estimated_revenue: str
+    estimated_transport_cost: str
+    estimated_net_profit: str
+    target_date: str
     warnings: List[str]
-    target_date: str
 
-class PredictionResponse(BaseModel):
-    target_date: str
+
+class PredictResponse(BaseModel):
+    crop: str
     item_id: int
+    quantity_kg: float
+    start_date: str
+    target_date: str
     horizon_days: int
-    basis: str
-    markets: List[MarketPrediction]
-    best_market: MarketPrediction
+    fuel_price_used: float
+    transport_assumption: str
+    prediction_ready: bool
+    markets: List[MarketResult]
+    best_market: Dict[str, Any]
     message: str
     warnings: List[str]
+
 
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the Market Price Prediction API"}
 
-@app.post("/predict", response_model=PredictionResponse)
-def predict_price(request: PredictionRequest):
+
+@app.post("/predict", response_model=PredictResponse)
+def predict(req: PredictRequest):
     try:
-        # Call the existing function from predict.py
-        result = recommend_best_market(
-            user_lat=request.user_lat,
-            user_lon=request.user_lon,
-            item_id=request.item_id,
-            start_date=request.start_date,
-            horizon_days=request.horizon_days,
-            is_holiday=request.is_holiday,
-            fuel_price=request.fuel_price,
-            transport_cost_per_km=request.transport_cost_per_km
-        )
+        payload = req.model_dump()
+
+        # call your existing logic (it fetches fuel + holiday itself)
+        result = recommend_best_market(payload)
         return result
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
-
-# To run the app:
-# uvicorn app:app --reload
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=8050, reload=True)
