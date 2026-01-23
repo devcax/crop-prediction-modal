@@ -25,7 +25,6 @@ MARKETS = {
 }
 
 # ---------------- Crop -> ITEM_ID mapping ----------------
-# TODO: Update these IDs to match your dataset catalog exactly.
 CROP_TO_ITEM_ID = {
     "beans": 1,
     "carrot": 2,
@@ -63,7 +62,6 @@ def load_train_csv() -> pd.DataFrame:
 
 
 def get_latest_fuel_price(train_df: pd.DataFrame) -> float:
-    # Use latest non-null fuel price in the dataset
     tmp = train_df.dropna(subset=["DATE", "FUEL_PRICE"]).sort_values("DATE")
     if tmp.empty:
         # last resort fallback
@@ -72,10 +70,6 @@ def get_latest_fuel_price(train_df: pd.DataFrame) -> float:
 
 
 def parse_ics_holidays(ics_path: str):
-    """
-    Parses the local .ics file and returns set of YYYY-MM-DD strings for public holidays.
-    Returns (holiday_dates_set, warning_message or None)
-    """
     try:
         if not Path(ics_path).exists():
             return set(), f"Holiday file not found: {ics_path}"
@@ -88,10 +82,8 @@ def parse_ics_holidays(ics_path: str):
         
         for line in lines:
             line = line.strip()
-            # Parse DTSTART lines in the format: DTSTART;VALUE=DATE:YYYYMMDD
             if line.startswith('DTSTART;VALUE=DATE:'):
                 date_str = line.split(':')[1]
-                # Convert YYYYMMDD to YYYY-MM-DD
                 if len(date_str) == 8 and date_str.isdigit():
                     formatted_date = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
                     dates.add(formatted_date)
@@ -111,7 +103,7 @@ def build_is_holiday_for_dates(dates):
     """
     warnings = []
     
-    # Parse the local ICS file once
+    
     holiday_dates, warn = parse_ics_holidays(HOLIDAY_ICS_PATH)
     if warn:
         warnings.append(warn)
@@ -121,7 +113,7 @@ def build_is_holiday_for_dates(dates):
         s = d.strftime("%Y-%m-%d")
         out[s] = 1 if s in holiday_dates else 0
 
-    # If parsing failed completely, still return zeros but warn
+
     if holiday_dates == set() and warnings:
         warnings.append("Holiday list empty (using IS_HOLIDAY=0 for all days)")
 
@@ -229,7 +221,6 @@ def predict_market_price_horizon(
             "roll_mean_7": float(roll_mean_7),
         }
 
-        # holiday for the CURRENT day used as feature
         is_holiday = is_holiday_map.get(current_date.strftime("%Y-%m-%d"), 0)
 
         pred_price = _predict_one_step(item_id, market_id, current_date, is_holiday, fuel_price, chain_state)
@@ -253,12 +244,7 @@ def predict_market_price_horizon(
 
 
 def recommend_best_market(payload: dict):
-    """
-    Expected payload keys:
-      crop (str), quantity_kg (float), horizon_days (int),
-      latitude (float), longitude (float)
-    """
-    # ---- validate inputs ----
+
     crop = str(payload["crop"]).strip().lower()
     if crop not in CROP_TO_ITEM_ID:
         raise ValueError(f"Unknown crop '{payload['crop']}'. Add it to CROP_TO_ITEM_ID mapping.")
@@ -271,13 +257,12 @@ def recommend_best_market(payload: dict):
     user_lat = float(payload["latitude"])
     user_lon = float(payload["longitude"])
     
-    # Use current date as start_date
+    
     start_dt = pd.Timestamp.now().normalize()
     start_date = start_dt.strftime("%Y-%m-%d")
 
     item_id = CROP_TO_ITEM_ID[crop]
 
-    # ---- load train + get fuel ----
     train_df = load_train_csv()
     fuel_price = get_latest_fuel_price(train_df)
 
@@ -287,8 +272,7 @@ def recommend_best_market(payload: dict):
     is_holiday_map, holiday_warnings = build_is_holiday_for_dates(chain_dates)
 
     # ---- transport settings ----
-    # You said: "For now transport is 10rs per km"
-    # I implement as 10 Rs per km per kg (scales with quantity).
+
     TRANSPORT_RS_PER_KM_PER_KG = 2.0
 
     results = []
@@ -310,8 +294,6 @@ def recommend_best_market(payload: dict):
         # Profit math:
         revenue = predicted_price_per_kg * quantity_kg
 
-        # If you meant 10 Rs per km TOTAL TRIP (not per kg),
-        # replace the next line with: transport_cost = dist_km * 10.0
         transport_cost = dist_km * TRANSPORT_RS_PER_KM_PER_KG * quantity_kg
 
         net_profit_est = revenue - transport_cost
@@ -342,17 +324,16 @@ def recommend_best_market(payload: dict):
         f"✅ Best market to sell: {best['market_name']} (highest estimated net profit after transport)."
     ]
 
-    # ---- collect warnings ----
     warnings = []
     warnings.extend(holiday_warnings)
     for r in results:
         for w in r["warnings"]:
             warnings.append(f"{r['market_name']}: {w}")
-    # unique
+ 
     warnings = list(dict.fromkeys([w for w in warnings if w]))
 
-    # Determine if prediction is ready (successful)
-    prediction_ready = True  # True if prediction completed successfully
+ 
+    prediction_ready = True  
 
     return {
         "crop": payload["crop"],
@@ -375,7 +356,7 @@ def recommend_best_market(payload: dict):
     }
 
 
-# ---------------- Example local run ----------------
+
 if __name__ == "__main__":
     api_payload = {
         "crop": "beans",
